@@ -1,0 +1,23 @@
+{
+  "name": "atscntrb-as-getopt",
+  "version": "0.0.1",
+  "description": "getopt command line parsing for ATS/Postiats",
+  "main": "N/A",
+  "scripts": {
+    "test": "cd TEST && make regress"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ashalkhakov/atscntrb-as-getopt.git"
+  },
+  "keywords": [
+    "ATS",
+    "getopt"
+  ],
+  "author": "Artyom Shalkhakov <artyom.shalkhakov@gmail.com>",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/ashalkhakov/atscntrb-as-getopt/issues"
+  },
+  "homepage": "https://github.com/ashalkhakov/atscntrb-as-getopt#readme"
+}

@@ -1,0 +1,9 @@
+#
+# For testing
+# atscntrb-as-getopt
+#
+######
+
+all:: ; make -C TEST testall
+
+###### end of [Makefile_test] ######
