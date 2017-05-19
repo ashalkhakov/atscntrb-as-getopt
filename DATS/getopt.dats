@@ -180,9 +180,10 @@ end // end of [find_optinfo]
 (* ****** ****** *)
 
 extern
-fun{}
+fun{env:vt@ype}
 process_one_arg {n,n1,m:int | n1 < n} (
-  argc: size_t(n)
+  env: &(env) >> _
+, argc: size_t(n)
 , argv: &(@[string][n])
 , cur: &size_t(n1) >> size_t(n2)
 , arg: string
@@ -191,9 +192,10 @@ process_one_arg {n,n1,m:int | n1 < n} (
 , is_short: bool
 ): #[n2:int | n2 <= n] getopt_ret
 
-implement
-process_one_arg<> {n,n1,m} (
-  argc, argv
+implement{env}
+process_one_arg {n,n1,m} (
+  env
+, argc, argv
 , cur
 , arg
 , opts, optsz
@@ -216,19 +218,27 @@ in
     prval () = topize{string}(value)
   in
     if ix = optsz then let
-      val () = arg_error<> ($UN.cast{string}(strptr2ptr(key)), cur, ERRunknown_argument())
+      val () = arg$error<env> (env, $UN.cast{string}(strptr2ptr(key)), cur, ERRunknown_argument())
       val () = strptr_free (key)
     in
       GOerr ()
     end
-    else let
-      prval () = lemma_g1uint_param (ix)
-      val () = arg_match<> (ix, opts.[ix], opts.[ix].lname, value1)
-      val () = strptr_free (key)
-      val () = cur := succ(cur)
-    in
-      GOnext ()
-    end
+    else (
+      case+ opts.[ix].arity of
+      | OAnull () => let
+          val () = arg$error<env> (env, $UN.cast{string}(strptr2ptr(key)), cur, ERRunexpected_param())
+          val () = strptr_free (key)
+        in
+          GOerr ()
+        end
+      | _ => let // can consume this argument
+        prval () = lemma_g1uint_param (ix)
+        val () = arg$match<env> (env, ix, opts.[ix], opts.[ix].lname, value1)
+        val () = strptr_free (key)
+        val () = cur := succ(cur)
+      in
+        GOnext ()
+      end)
   end
   else let // no value specified
     // find optinfo for this arg
@@ -237,41 +247,73 @@ in
     prval () = opt_unnone{string}(value)
   in
     if ix = optsz then let
-      val () = arg_error<> (arg, cur, ERRunknown_argument())
+      val () = arg$error<env> (env, arg, cur, ERRunknown_argument())
     in
       GOerr ()
     end
     else let
       prval () = lemma_g1uint_param (ix)
     in
-      if opts.[ix].required then let
-      in
-        if succ(cur) < argc then let
-           val cur1 = succ(cur)
-           // consume this argument
-           val () = arg_match<> (ix, opts.[ix], arg, argv.[cur1])
-           val () = cur := succ(cur1)
+      case+ opts.[ix].arity of
+      | OArequired () => let
         in
-           GOnext ()
+          if succ(cur) < argc then let
+             val cur1 = succ(cur)
+             // consume this argument
+             val () = arg$match<env> (env, ix, opts.[ix], arg, argv.[cur1])
+             val () = cur := succ(cur1)
+          in
+             GOnext ()
+          end
+          else let
+            val () = arg$error<env> (env, arg, cur, ERRmissing_param())
+          in
+            GOerr ()
+          end
         end
-        else let
-          val () = arg_error<> (arg, cur, ERRmissing_param())
+      | OAoptional () => let // not required, so...
+          val cur1 = succ(cur)
+          val arg1 = argv.[cur]
         in
-          GOerr ()
-        end
-      end else let // required = false, so...
-        // here, we must decide if we have to get the next argument in the list...
-        val () = arg_match<> (ix, opts.[ix], arg, "")
-        val () = cur := succ(cur)
-      in
-        GOnext ()
-      end
-    end
-  end
+          if cur1 < argc then let
+            // see if it is a param or arg
+            var arg1' : string
+            val optknd1 = arg_get_optknd (arg1, arg1')
+            val arg1 = arg1
+          in
+            case+ optknd1 of
+            | OKparm () => let        
+                val () = arg$match<env> (env, ix, opts.[ix], arg, arg1)
+                val () = cur := succ(cur1)
+              in
+                GOnext ()
+              end // end of [OKparm]
+            | _ => let // not a parameter
+                val () = arg$match<env> (env, ix, opts.[ix], arg, "")
+                val () = cur := succ(cur)
+              in
+                GOnext ()
+              end // end of [OKparm]
+          end // end of [if]
+          else let // no parameter present
+            val () = arg$match<env> (env, ix, opts.[ix], arg, "")
+            val () = cur := succ(cur)
+          in
+            GOnext ()
+          end // end of [else ...]
+        end // end of [OAoptional]
+      | OAnull () => let // no parameter is expected
+          val () = arg$match<env> (env, ix, opts.[ix], arg, "")
+          val () = cur := succ(cur)
+        in
+          GOnext ()
+        end // end of [OKparm]
+    end // end of [if ix = optsz]
+  end // end of [if has_value]
 end // end of [process_one_arg]
 
-implement
-getopt<> {n,n1,m} (argc, argv, cur, opts, optsz) =
+implement{env}
+getopt_env {n,n1,m} (env, argc, argv, cur, opts, optsz) =
   if cur = argc then GOstop ()
   else let
     val arg0 = argv.[cur]
@@ -281,12 +323,154 @@ getopt<> {n,n1,m} (argc, argv, cur, opts, optsz) =
     val arg = arg
   in
     case+ optknd of
-    | OKlong () => process_one_arg (argc, argv, cur, arg, opts, optsz, false)
-    | OKshort () => process_one_arg (argc, argv, cur, arg, opts, optsz, true)
-    | OKeof () => GOstop ()
+    | OKlong () => process_one_arg<env> (env, argc, argv, cur, arg, opts, optsz, false)
+    | OKshort () => process_one_arg<env> (env, argc, argv, cur, arg, opts, optsz, true)
+    | OKeof () => let
+        val () =
+          if cur < argc then {
+            // consume the "--"
+            val () = cur := succ(cur)
+          } (* end of [val] *)
+      in
+        GOstop ()
+      end // end of [OKeof]
     | OKparm () => GOstop ()
     | OKerror () => GOerr ()
-  end // end of [getopt]
+  end // end of [getopt_env]
+
+(* ****** ****** *)
+
+implement{env}
+getopt_all$rest {n} (env, sz, arr) = ()
+
+implement{env}
+getopt_all_env {n,n1,m} (env, argc, argv, cur, opts, optsz) = let
+  prval () = lemma_g1uint_param (argc)
+  prval () = lemma_g1uint_param (cur)
+  prval () = lemma_g1uint_param (optsz)
+
+  fun
+  go_cont (i: getopt_ret): bool = case+ i of GOnext () => true | _ => false
+
+  var i: size_t
+  val () = i := cur
+  var res: getopt_ret = GOnext ()
+  val () =
+    while* {i:nat | i <= n}
+      (i: size_t(i), res: getopt_ret, env: env, argv: @[string][n], opts: @[optinfo][m]):
+      (i: sizeLte(n), res: getopt_ret, env: env, argv: @[string][n], opts: @[optinfo][m]) =>
+      (i < argc && go_cont (res)) (let
+      val () = res := getopt_env<env> (env, argc, argv, i, opts, optsz)
+      prval () = lemma_g1uint_param (i)
+    in
+    end) // end of [for]
+  // now, extract some stuff here.. from the tail of the array
+
+  fun
+  getopt_all$rest_prf {n:int} {l:addr} (
+    pf_arr: !array_v (string, l, n)
+  | env: &(env) >> _, n: size_t(n), p_arr: ptr l
+  ): void = getopt_all$rest<env> (env, n, !p_arr)
+
+  val p_arr = addr@argv
+  prval pf_arr = view@argv
+  val i1 = i
+  prval (pf1_arr, pf2_arr) = array_v_split_at {string} (pf_arr | i1)
+  val p_arr = ptr1_add_guint<string> (p_arr, i1)
+  
+  val () = getopt_all$rest_prf (pf2_arr | env, argc-i1, p_arr)
+  
+  prval pf_arr = array_v_unsplit (pf1_arr, pf2_arr)
+  prval () = view@argv := pf_arr
+in
+  res
+end // end of [getopt_all_env]
+
+(* ****** ****** *)
+
+implement{}
+getopt_help {m} (arg0, opts, optsz) = let
+//
+  fun
+  indent (out: FILEref, nspaces: int): void = {
+    var i: int = 0
+    val () = while (i < nspaces) (i := i + 1; fprint!(out, ' '))
+  } (* end of [indent] *)
+//
+  // calculate max nspaces per every option
+  var optheader: int = 0
+  implement
+  array_foreach$fwork<optinfo><int> (oi, env) = {
+    var res: int = 0
+
+    val has_sname = (oi.sname <> '\000')
+    val () = res := res + 2
+
+    val lname = (g1ofg0)oi.lname
+    val has_lname = string_isnot_empty(lname)
+    val () = res := res + 2
+
+    val () =
+      if has_lname then {
+        val () = res := res + 2 + (sz2i)(string_length oi.lname) + 1
+        val () = res := res - g0ofg1_int(case+ oi.arity of OAnull() => 0 | OArequired() => 4 | _ => 6)
+      }
+    val () = res := res + 2
+    val () = env := max (env, res)
+  } (* end of [array_foreach_env$fwork] *)
+  val _ = array_foreach_env<optinfo><int> (opts, optsz, optheader)
+//
+  val optheader = optheader
+//
+  implement
+  fprint_array$sep<> (out) = fprint_newline (out)
+  implement
+  fprint_ref<optinfo> (out, oi) = {
+    // use up as many as you need, and pad the unused space
+    var res : int = optheader
+    val optname: string = g0ofg1_string(case+ oi.arity of OAnull() => "" | OArequired() => "ARG" | _ => "[ARG]")
+
+    val () = indent (out, 2)
+
+    val has_sname = (oi.sname <> '\000')
+    val () =
+      if has_sname then {
+        val () = fprint!(out, "-", oi.sname)
+      }
+      else {
+        val () = fprint!(out, "  ")
+      }(* end of [val] *)
+    val () = res := res - 2
+
+    val lname = (g1ofg0)oi.lname
+    val has_lname = string_isnot_empty(lname)
+    val () =
+      if has_sname && has_lname then {
+        val () = fprint!(out, ", ")
+      }
+      else {
+        val () = fprint!(out, "  ")
+      }(* end of [val] *)
+    val () = res := res - 2
+
+    val () =
+      if has_lname then {
+        val () = fprint!(out, "--", oi.lname)
+        val () = case+ oi.arity of OAnull () => () | _ => fprint!(out, "=", optname)
+        val () = res := res - (2 + (sz2i)(string_length oi.lname) + 1)
+        val () = res := res - g0ofg1_int(case+ oi.arity of OAnull() => 0 | OArequired() => 4 | _ => 6)
+      }
+      else {
+      }(* end of [val] *)
+
+    val () = indent (out, res)
+    val () = fprint!(out, oi.help)
+  }
+  val () = fprintln!(stdout_ref, "usage: ", arg0, " [OPTION] arg...")
+  val () = fprint_array_size<optinfo> (stdout_ref, opts, optsz)
+  val () = fprintln!(stdout_ref)
+in
+end
 
 (* ****** ****** *)
 
@@ -377,7 +561,11 @@ val () = {
 // find_optinfo
 val () = {
   #define NOPTS 3
-  var opts = @[optinfo](@{lname="output", sname='o', required=true, help=""}, @{lname="warning", sname='W', required=true, help=""}, @{lname="help", sname='h', required=false, help=""})
+  var opts = @[optinfo](
+    @{lname="output", sname='o', arity=OArequired(), help=""},
+    @{lname="warning", sname='W', arity=OArequired(), help=""},
+    @{lname="help", sname='h', arity=OAnull(), help=""}
+  ) (* end of [var]*)
  
   val ix = find_optinfo (opts, (i2sz)NOPTS, OKshort(), "h")
   val-true = (ix = (i2sz)2)

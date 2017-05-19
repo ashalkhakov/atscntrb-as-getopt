@@ -27,6 +27,10 @@ $(PATSCC) \
 -DATS_MEMALLOC_LIBC -o $@ $<
 #
 regress:: test00; ./$<
+regress:: test00
+	./test00 --help -W0 ab
+	./test00 --help -- --another arg
+	./test00 --output=A --help -Wl abc def
 cleanall:: ; $(RMF) test00
 #
 ######
