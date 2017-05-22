@@ -132,7 +132,7 @@ test2 {n} (argc, argv) = let
   implement
   arg$match<void> (env, index, oi, key, value) = let
   in
-    if index = (i2sz)2(*help*) then get_help (arg0)
+    if index = (i2sz)3(*help*) then get_help (arg0)
     else
     println!("match: optind=[", index, "], key = [", key, "], value = [", value, "]")
   end

@@ -31,6 +31,8 @@ regress:: test00
 	./test00 --help -W0 ab
 	./test00 --help -- --another arg
 	./test00 --output=A --help -Wl abc def
+	./test00 --push 0 -W1 ab
+	./test00 --push -W1 ab
 cleanall:: ; $(RMF) test00
 #
 ######

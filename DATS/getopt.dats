@@ -273,10 +273,10 @@ in
         end
       | OAoptional () => let // not required, so...
           val cur1 = succ(cur)
-          val arg1 = argv.[cur]
         in
           if cur1 < argc then let
             // see if it is a param or arg
+            val arg1 = argv.[cur1]
             var arg1' : string
             val optknd1 = arg_get_optknd (arg1, arg1')
             val arg1 = arg1
@@ -413,7 +413,7 @@ getopt_help {m} (arg0, opts, optsz) = let
     val () =
       if has_lname then {
         val () = res := res + 2 + (sz2i)(string_length oi.lname) + 1
-        val () = res := res - g0ofg1_int(case+ oi.arity of OAnull() => 0 | OArequired() => 4 | _ => 6)
+        val () = res := res + g0ofg1_int(case+ oi.arity of OAnull() => 0 | OArequired() => 4 | _ => 6)
       }
     val () = res := res + 2
     val () = env := max (env, res)

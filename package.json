@@ -1,10 +1,10 @@
 {
   "name": "atscntrb-as-getopt",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "getopt command line parsing for ATS/Postiats",
   "main": "N/A",
   "scripts": {
-    "test": "cd TEST && make regress"
+    "test": "cd TEST && make regress | grep error"
   },
   "repository": {
     "type": "git",
